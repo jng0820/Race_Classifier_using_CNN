@@ -1,8 +1,11 @@
 import tensorflow as tf
 import os
 import numpy as np
+import Layer_class
 from datetime import datetime
 
+batch_size = 64
+n_classes = 3
 
 asian_path = 'images/train/asian/'
 white_path = 'images/train/white/'
@@ -49,56 +52,55 @@ img_files = tf.image.resize_image_with_crop_or_pad(img_files,208,208)
 
 img_files = tf.image.per_image_standardization(img_files)
 
-image_batch,label_batch = tf.train.batch([img_files,label_images], batch_size= 16, num_threads=32, capacity=2000)
+image_batch,label_batch = tf.train.batch([img_files,label_images], batch_size= batch_size, num_threads=32, capacity=2000)
 
-label_batch = tf.reshape(label_batch,[16])
+label_batch = tf.reshape(label_batch,[batch_size])
 image_batch = tf.cast(image_batch,tf.float32)
 
-keep_prob = tf.placeholder("float")
 
-W1 = tf.Variable(tf.random_normal([3,3,3,16],stddev=0.01))
-L1 = tf.nn.conv2d(image_batch,W1,strides=[1,1,1,1],padding = 'SAME')
-L1 = tf.nn.relu(L1)
-L1 = tf.nn.max_pool(L1, ksize=[1,3,3,1],strides=[1,2,2,1], padding='SAME')
-L1 = tf.nn.dropout(L1,keep_prob=keep_prob)
 
-W2 = tf.Variable(tf.random_normal([3,3,16,16],stddev=0.01))
-L2 = tf.nn.conv2d(L1,W2,strides=[1,1,1,1],padding = 'SAME')
-L2 = tf.nn.relu(L2)
-L2 = tf.nn.max_pool(L2, ksize=[1,3,3,1],strides=[1,1,1,1], padding='SAME')
-L2 = tf.nn.dropout(L2,keep_prob=keep_prob)
-L2 = tf.reshape(L2,shape=[16,-1])
-
-dim = L2.get_shape()[1].value
-W3 = tf.get_variable("W4",shape=[dim,128],initializer=tf.contrib.layers.xavier_initializer())
-b = tf.Variable(tf.random_normal([128]))
-L3 = tf.nn.relu(tf.matmul(L2,W3)+b)
-L3 = tf.nn.dropout(L3,keep_prob=keep_prob)
-
-W5 = tf.get_variable("W5",shape=[128,3],initializer=tf.contrib.layers.xavier_initializer())
-b2 = tf.Variable(tf.random_normal([3]))
-hypothesis = tf.matmul(L3,W5)+b2
-
-cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits\
-                        (logits=hypothesis, labels=label_batch, name='xentropy_per_example')
-cost = tf.reduce_mean(cross_entropy, name='loss')
-optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
-
-correct = tf.nn.in_top_k(hypothesis, label_batch, 1)
-correct = tf.cast(correct, tf.float16)
-accuracy = tf.reduce_mean(correct)
-
-saver = tf.train.Saver()
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 coord = tf.train.Coordinator()
 threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-for step in np.arange(1000):
-    if coord.should_stop():
-        break
-    _, tra_loss, tra_acc = sess.run([optimizer, cost, accuracy],feed_dict={keep_prob: 0.7})
-    if step % 50 == 0:
-        print('Step %d, train loss = %.2f, train accuracy = %.2f%%' % (step, tra_loss, tra_acc * 100.0))
 
-save_path = saver.save(sess, "./model_save/model_saved.ckpt")
+x = tf.placeholder(tf.float32,shape=[batch_size,208,208,3])
+y = tf.placeholder(tf.int32,shape=[batch_size])
+keep_prob = tf.placeholder(tf.float32)
+
+logits = Layer_class._build_net(x, batch_size, n_classes,keep_prob)
+
+cost = Layer_class.cost(logits,y)
+optimizer = Layer_class.optimizer(cost,0.001)
+accuracy = Layer_class.accuaracy(logits,y)
+
+with tf.Session() as sess:
+    saver = tf.train.Saver()
+    sess.run(tf.global_variables_initializer())
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess,coord)
+
+    summary_op = tf.summary.merge_all()
+    train_writer = tf.summary.FileWriter(train_log_path,sess.graph)
+    val_writer = tf.summary.FileWriter(train_log_path,sess.graph)
+
+    for step in np.arange(1000):
+        if coord.should_stop():
+            break
+
+        tra_images, tra_labels = sess.run([image_batch, label_batch])
+        _, train_loss,train_accuracy = sess.run([optimizer, cost, accuracy],feed_dict={x:tra_images,y:tra_labels,keep_prob:0.7})
+
+        if step % 50 == 0:
+            print('Step %d, train loss = %.2f, train accuracy = %.2f%%' % (step, train_loss, train_accuracy * 100.0))
+            summary_str = sess.run(summary_op)
+            train_writer.add_summary(summary_str, step)
+
+        if step % 500 == 0 :
+            checkpoint_path = os.path.join(train_log_path, 'model.ckpt')
+            saver.save(sess, checkpoint_path, global_step=step)
+            summary_str = sess.run(summary_op)
+            val_writer.add_summary(summary_str, step)
+
+
