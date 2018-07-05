@@ -18,14 +18,19 @@ def _build_net(images,batch_size,n_classes,keep_prob):
         L2 = tf.reshape(L2, shape=[batch_size, -1])
 
         dim = L2.get_shape()[1].value
-        W3 = tf.get_variable("W4", shape=[dim, 128], initializer=tf.contrib.layers.xavier_initializer())
-        b = tf.Variable(tf.random_normal([128]))
+        W3 = tf.get_variable("W3", shape=[dim, 512], initializer=tf.contrib.layers.xavier_initializer())
+        b = tf.Variable(tf.random_normal([512]))
         L3 = tf.nn.relu(tf.matmul(L2, W3) + b)
         L3 = tf.nn.dropout(L3, keep_prob=keep_prob)
 
+        W4 = tf.get_variable("W4", shape=[512, 128], initializer=tf.contrib.layers.xavier_initializer())
+        b2 = tf.Variable(tf.random_normal([128]))
+        L4 = tf.nn.relu(tf.matmul(L3, W4) + b2)
+        L4 = tf.nn.dropout(L4, keep_prob=keep_prob)
+
         W5 = tf.get_variable("W5", shape=[128, n_classes], initializer=tf.contrib.layers.xavier_initializer())
-        b2 = tf.Variable(tf.random_normal([n_classes]))
-        hypothesis = tf.matmul(L3, W5) + b2
+        b3 = tf.Variable(tf.random_normal([n_classes]))
+        hypothesis = tf.matmul(L4, W5) + b3
 
         return hypothesis
 

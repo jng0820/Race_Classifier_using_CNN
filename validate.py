@@ -6,12 +6,11 @@ from PIL import Image
 
 with tf.Graph().as_default():
     BATCH_SIZE = 1
-    N_CLASSES = 3
+    N_CLASSES = 2
     val_src = 'images/validate/'
-    filename = 'saul.jpg'
-    filename2 = 'son.jpg'
+    filename = input('write file name that you wanna predict : ')
 
-    image_file = Image.open(val_src + filename2)
+    image_file = Image.open(val_src + filename)
     image_file = image_file.resize([208, 208])
     plt.imshow(image_file)
     img_file1 = np.array(image_file)
@@ -38,4 +37,9 @@ with tf.Graph().as_default():
         prediction = sess.run(logits, feed_dict={x: images, keep_prob : 1})
         max_index = np.argmax(prediction)
 
-        print("prediction :", max_index)
+        if max_index == 1 :
+            print("Prediction : White")
+        if max_index == 0 :
+            print("Prediction : Asian")
+        if max_index == 2 :
+            print("Prediction : Black")

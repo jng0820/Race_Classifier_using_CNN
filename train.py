@@ -34,6 +34,8 @@ label_images = np.hstack((label_images))
 
 temp = np.array([img_files,label_images])
 temp = temp.transpose()
+np.random.shuffle(temp)
+
 
 img_files = list(temp[:,0])
 label_images = list(temp[:,1])
@@ -52,7 +54,7 @@ img_files = tf.image.resize_image_with_crop_or_pad(img_files,208,208)
 
 img_files = tf.image.per_image_standardization(img_files)
 
-image_batch,label_batch = tf.train.batch([img_files,label_images], batch_size= batch_size, num_threads=32, capacity=2000)
+image_batch,label_batch = tf.train.batch([img_files,label_images], batch_size= batch_size, num_threads=64, capacity=2000)
 
 label_batch = tf.reshape(label_batch,[batch_size])
 image_batch = tf.cast(image_batch,tf.float32)
@@ -85,7 +87,7 @@ with tf.Session() as sess:
     train_writer = tf.summary.FileWriter(train_log_path,sess.graph)
     val_writer = tf.summary.FileWriter(train_log_path,sess.graph)
 
-    for step in np.arange(1000):
+    for step in np.arange(1500):
         if coord.should_stop():
             break
 
@@ -94,13 +96,14 @@ with tf.Session() as sess:
 
         if step % 50 == 0:
             print('Step %d, train loss = %.2f, train accuracy = %.2f%%' % (step, train_loss, train_accuracy * 100.0))
-            summary_str = sess.run(summary_op)
-            train_writer.add_summary(summary_str, step)
+            #summary_str = sess.run(summary_op)
+            #train_writer.add_summary(summary_str, step)
 
-        if step % 500 == 0 :
-            checkpoint_path = os.path.join(train_log_path, 'model.ckpt')
-            saver.save(sess, checkpoint_path, global_step=step)
-            summary_str = sess.run(summary_op)
-            val_writer.add_summary(summary_str, step)
-
-
+    checkpoint_path = os.path.join(train_log_path, 'model.ckpt')
+    saver.save(sess, checkpoint_path)
+    print('Model training & saving finished.')
+    coord.request_stop()
+    coord.join(threads)
+    print("Image Name : ",tra_images)
+    print("Prediction : ", sess.run(tf.argmax(logits,1),feed_dict={x:tra_images,keep_prob:1}))
+    print("Real Value : ",tra_labels)
